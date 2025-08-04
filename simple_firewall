@@ -1,0 +1,73 @@
+firewall_rules = []
+
+def add_rule(rule_type, value):
+    firewall_rules.append((rule_type, value))
+    print(f"Rule added: {rule_type} {value}")
+
+def view_rules():
+    if not firewall_rules:
+        print("No rules added.")
+    else:
+        for idx, (rule_type, value) in enumerate(firewall_rules):
+            print(f"{idx+1}. {rule_type.upper()} {value}")
+
+def is_packet_allowed(packet):
+    for rule_type, value in firewall_rules:
+        if rule_type == "block_ip" and packet["src_ip"] == value:
+            return False
+        elif rule_type == "block_port" and packet["port"] == value:
+            return False
+        elif rule_type == "block_protocol" and packet["protocol"].upper() == value.upper():
+            return False
+    return True
+
+def simulate():
+    print("Simulating Packet:")
+    packet = {
+        "src_ip": input("Source IP: "),
+        "dst_ip": input("Destination IP: "),
+        "protocol": input("Protocol (TCP/UDP): "),
+        "port": int(input("Port number: "))
+    }
+
+    allowed = is_packet_allowed(packet)
+    if allowed:
+        print("Packet is allowed.")
+    else:
+        print("Packet is blocked by firewall.")
+
+# === MENU LOOP ===
+while True:
+    print("\n--- Firewall Simulator ---")
+    print("1. Add Rule")
+    print("2. View Rules")
+    print("3. Simulate Packet")
+    print("4. Exit")
+
+    choice = input("Enter choice (1-4): ")
+
+    if choice == '1':
+        print("Rule Types: block_ip, block_port, block_protocol")
+        rtype = input("Enter rule type: ").strip()
+        val = input("Enter value: ").strip()
+        if rtype == "block_port":
+            try:
+                val = int(val)
+            except ValueError:
+                print("Port must be a number.")
+                continue
+        add_rule(rtype, val)
+
+    elif choice == '2':
+        view_rules()
+
+    elif choice == '3':
+        simulate()
+
+    elif choice == '4':
+        print("Exiting Firewall Simulator.")
+        break
+
+    else:
+        print("Invalid choice. Try again.")
+
