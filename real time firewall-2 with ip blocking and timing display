@@ -1,0 +1,172 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+import random
+import threading
+import time
+
+# ---------------- Firewall Rules ----------------
+firewall_rules = {
+    "block_ports": [21, 53, 8801],
+    "block_protocols": ["UDP"],
+    "allow_protocols": ["TCP"],
+    "block_ips": ["192.168.1.10"]   # New: Blocked IP addresses
+}
+
+# Stats
+packet_stats = {"allowed": 0, "blocked": 0}
+
+# GUI Setup
+root = tk.Tk()
+root.title("Interactive Firewall Simulator")
+root.geometry("900x600")
+root.config(bg="#f7f7f7")
+
+# ---------------- Functions ----------------
+def random_ip():
+    """Generate a fake random IP address"""
+    return f"192.168.{random.randint(0, 1)}.{random.randint(1, 254)}"
+
+def log_packet(time_stamp, src_ip, dst_ip, protocol, port, action):
+    """Insert packet into the table"""
+    packet_table.insert("", "end", values=(time_stamp, src_ip, dst_ip, protocol, port, action))
+
+def check_packet(src_ip, dst_ip, protocol, port):
+    """Simulate firewall decision"""
+    if src_ip in firewall_rules["block_ips"] or dst_ip in firewall_rules["block_ips"]:
+        packet_stats["blocked"] += 1
+        return "❌ BLOCKED (IP Rule)"
+    elif protocol in firewall_rules["block_protocols"]:
+        packet_stats["blocked"] += 1
+        return "❌ BLOCKED (Protocol Rule)"
+    elif port in firewall_rules["block_ports"]:
+        packet_stats["blocked"] += 1
+        return "❌ BLOCKED (Port Rule)"
+    elif protocol in firewall_rules["allow_protocols"]:
+        packet_stats["allowed"] += 1
+        return "✅ ALLOWED"
+    else:
+        packet_stats["blocked"] += 1
+        return "⚠️ BLOCKED (Default)"
+
+def simulate_packets():
+    """Generate random packets continuously"""
+    while running.get():
+        src_ip = random_ip()
+        dst_ip = random_ip()
+        protocol = random.choice(["TCP", "UDP", "ICMP"])
+        port = random.randint(20, 9000)
+        action = check_packet(src_ip, dst_ip, protocol, port)
+        log_packet(time.strftime("%H:%M:%S"), src_ip, dst_ip, protocol, port, action)
+        update_stats()
+        time.sleep(1.5)
+
+def start_simulation():
+    if not running.get():
+        running.set(True)
+        threading.Thread(target=simulate_packets, daemon=True).start()
+
+def stop_simulation():
+    running.set(False)
+
+def add_rule():
+    """Add a new block rule"""
+    choice = rule_type_var.get()
+    value = rule_value_entry.get().strip()
+    
+    if choice == "Port":
+        if not value.isdigit():
+            messagebox.showerror("Error", "Please enter a numeric port!")
+            return
+        value = int(value)
+        if value not in firewall_rules["block_ports"]:
+            firewall_rules["block_ports"].append(value)
+            messagebox.showinfo("Rule Added", f"Blocked Port {value}")
+    elif choice == "Protocol":
+        value = value.upper()
+        if value not in firewall_rules["block_protocols"]:
+            firewall_rules["block_protocols"].append(value)
+            messagebox.showinfo("Rule Added", f"Blocked Protocol {value}")
+    elif choice == "IP":
+        if value not in firewall_rules["block_ips"]:
+            firewall_rules["block_ips"].append(value)
+            messagebox.showinfo("Rule Added", f"Blocked IP {value}")
+    update_rules_display()
+
+def remove_rule():
+    """Remove a block rule"""
+    choice = rule_type_var.get()
+    value = rule_value_entry.get().strip()
+    
+    if choice == "Port" and value.isdigit():
+        value = int(value)
+        if value in firewall_rules["block_ports"]:
+            firewall_rules["block_ports"].remove(value)
+            messagebox.showinfo("Rule Removed", f"Port {value} unblocked")
+    elif choice == "Protocol":
+        value = value.upper()
+        if value in firewall_rules["block_protocols"]:
+            firewall_rules["block_protocols"].remove(value)
+            messagebox.showinfo("Rule Removed", f"Protocol {value} unblocked")
+    elif choice == "IP":
+        if value in firewall_rules["block_ips"]:
+            firewall_rules["block_ips"].remove(value)
+            messagebox.showinfo("Rule Removed", f"IP {value} unblocked")
+    update_rules_display()
+
+def update_rules_display():
+    rules_text.delete("1.0", tk.END)
+    rules_text.insert(tk.END, f"Blocked Ports: {firewall_rules['block_ports']}\n")
+    rules_text.insert(tk.END, f"Blocked Protocols: {firewall_rules['block_protocols']}\n")
+    rules_text.insert(tk.END, f"Allowed Protocols: {firewall_rules['allow_protocols']}\n")
+    rules_text.insert(tk.END, f"Blocked IPs: {firewall_rules['block_ips']}\n")
+
+def update_stats():
+    stats_label.config(text=f"✅ Allowed: {packet_stats['allowed']}   ❌ Blocked: {packet_stats['blocked']}")
+
+# ---------------- Controls ----------------
+btn_frame = tk.Frame(root, bg="#f7f7f7")
+btn_frame.pack(pady=5)
+
+tk.Button(btn_frame, text="▶ Start Simulation", command=start_simulation, bg="#4CAF50", fg="white").grid(row=0, column=0, padx=5)
+tk.Button(btn_frame, text="⏸ Stop Simulation", command=stop_simulation, bg="#f44336", fg="white").grid(row=0, column=1, padx=5)
+
+# Rule management
+rule_frame = tk.LabelFrame(root, text="Firewall Rules", bg="#f7f7f7", padx=10, pady=10)
+rule_frame.pack(pady=10)
+
+rule_type_var = tk.StringVar(value="Port")
+ttk.Combobox(rule_frame, textvariable=rule_type_var, values=["Port", "Protocol", "IP"], width=10, state="readonly").grid(row=0, column=0, padx=5)
+
+rule_value_entry = tk.Entry(rule_frame, width=15)
+rule_value_entry.grid(row=0, column=1, padx=5)
+
+tk.Button(rule_frame, text="Add Rule", command=add_rule, bg="#2196F3", fg="white").grid(row=0, column=2, padx=5)
+tk.Button(rule_frame, text="Remove Rule", command=remove_rule, bg="#FF9800", fg="white").grid(row=0, column=3, padx=5)
+
+rules_text = tk.Text(rule_frame, height=5, width=80)
+rules_text.grid(row=1, column=0, columnspan=4, pady=5)
+
+update_rules_display()
+
+# ---------------- Packet Table ----------------
+table_frame = tk.LabelFrame(root, text="Packet Log", bg="#f7f7f7")
+table_frame.pack(pady=10, fill="both", expand=True)
+
+columns = ("Time", "Source IP", "Destination IP", "Protocol", "Port", "Action")
+packet_table = ttk.Treeview(table_frame, columns=columns, show="headings", height=12)
+
+for col in columns:
+    packet_table.heading(col, text=col)
+    packet_table.column(col, width=120)
+
+packet_table.pack(fill="both", expand=True)
+
+# Stats label
+stats_label = tk.Label(root, text="✅ Allowed: 0   ❌ Blocked: 0", font=("Arial", 12), bg="#f7f7f7")
+stats_label.pack(pady=5)
+
+# Running state
+running = tk.BooleanVar(value=False)
+
+# Run GUI
+root.mainloop()
